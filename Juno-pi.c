@@ -11,8 +11,9 @@
 volatile uint8_t MIDI_byte = 0, MIDI_msgFlag = 0;
 volatile uint8_t MIDI_byte0 = 0x90, MIDI_byte1 = 0, MIDI_byte2 = 0;
 
-//					     B    C    C#   D    D#   E    F    F#   G    G#   A    A#   b
-uint8_t MIDI_freqs[] = {252, 238, 224, 212, 200, 189, 178, 168, 158, 149, 141, 133, 126};
+//					            A     A#    B     C     C#    D     D#    E     F     F#    G     G#
+const uint8_t MIDI_freqs[] = {10054, 9490, 8957, 8455, 7980, 7532, 7109, 6710, 6334, 5978, 5642, 5326};
+//const uint8_t MIDI_freqs[] = {252, 238, 224, 212, 200, 189, 178, 168, 158, 149, 141, 133, 126};
 
 // Función que se llama cuando se recibe un byte por UART
 void uart_irq_handler() {
@@ -86,6 +87,45 @@ void setup_pwm(){
     PWM->CH[8].TOP = 4227;        // top
 }
 
+// Manejo de frecuencia
+void PWM_setNote(uint8_t slice, uint8_t nota, uint8_t detune){
+
+    // Selector de octava
+    if(nota < 33)
+        PWM->CH[slice].DIV = 0; // 256
+    else if(nota < 45)
+        PWM->CH[slice].DIV = (128 << 4);
+    else if(nota < 57)
+        PWM->CH[slice].DIV = (64 << 4);
+    else if(nota < 69)
+        PWM->CH[slice].DIV = (32 << 4);
+    else if(nota < 81)
+        PWM->CH[slice].DIV = (16 << 4);
+    else if(nota < 93)
+        PWM->CH[slice].DIV = (8 << 4);
+    else if(nota < 105)
+        PWM->CH[slice].DIV = (4 << 4);
+    else
+        PWM->CH[slice].DIV = (2 << 4);
+
+
+    // frecuencia base
+    uint16_t freq = (nota>=33)? MIDI_freqs[(nota-33) % 12] : 0;
+    // detune = 128 es NO desafinar
+    if(detune > 128)
+        // 430 es un semitono aprox
+        freq += (106*(detune-128)) >> 7;
+    else if(detune < 128)
+        freq -= (106*(128-detune)) >> 7;
+
+    // asigno la frecuencia al pwm slice
+    PWM->CH[slice].TOP = freq;
+}
+
+// Manejo de voces
+bool VOICE_on[5];
+uint8_t VOICE_note[5];
+
 int main() {
 
     setup_gpio();      // Configurar el pin del LED
@@ -99,18 +139,27 @@ int main() {
                 case 0x90: // note ON
                     gpio_put(LED_PIN, 1);
 
-                    volatile uint16_t nota = MIDI_freqs[MIDI_byte1%12] << 5;
-                    PWM->CH[7].TOP = nota;
+                    VOICE_on[0] = true;
+                    VOICE_note[0] = MIDI_byte1;
+                    PWM_setNote(7, MIDI_byte1, 128);
+                    
                     break;
                 case 0x80: // note OFF
+                    if(MIDI_byte1 != VOICE_note[0])
+                        break;
+                    
                     gpio_put(LED_PIN, 0);
+                    VOICE_on[0] = false;
+
                     break;
             }
             MIDI_msgFlag = 0;
         }
 
-        uint16_t value = (uint32_t) (PWM->CH[7].CTR + PWM->CH[8].CTR) >> 4;// + (uint32_t)PWM->CH[8].CTR;
+        // Calculo la salida de audio
+        uint16_t value = (uint32_t) ((VOICE_on[0]? PWM->CH[7].CTR : 0) + PWM->CH[8].CTR) >> 4;
 
+        // Saco el audio por el PWM 4b
         PWM->CH[4].CC = (value << 16);
 
     }
