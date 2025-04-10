@@ -1,57 +1,27 @@
-# Generated Cmake Pico project file
+set(TARGET_NAME "sequencer_synth")
 
-cmake_minimum_required(VERSION 3.13)
+if (NOT TARGET ${TARGET_NAME})
+    add_library(${TARGET_NAME} INTERFACE)
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+    target_sources(${TARGET_NAME} INTERFACE
+            ${CMAKE_CURRENT_LIST_DIR}/sound_pwm/sound_pwm.c
+            ${CMAKE_CURRENT_LIST_DIR}/sound_i2s/sound_i2s.c
+    )
+    
+    pico_generate_pio_header(${TARGET_NAME} ${CMAKE_CURRENT_LIST_DIR}/sound_i2s/sound_i2s_16bits.pio)
+    pico_generate_pio_header(${TARGET_NAME} ${CMAKE_CURRENT_LIST_DIR}/sound_i2s/sound_i2s_8bits.pio)
 
-# Initialise pico_sdk from installed location
-# (note this can come from environment, CMake cache etc)
+    target_include_directories(${TARGET_NAME} INTERFACE
+            ${CMAKE_CURRENT_LIST_DIR}
+            ${CMAKE_CURRENT_LIST_DIR}/sound_i2s
+            ${CMAKE_CURRENT_LIST_DIR}/sound_pwm
+    )
 
-# == DO NOT EDIT THE FOLLOWING LINES for the Raspberry Pi Pico VS Code Extension to work ==
-if(WIN32)
-    set(USERHOME $ENV{USERPROFILE})
-else()
-    set(USERHOME $ENV{HOME})
+    target_link_libraries(${TARGET_NAME} INTERFACE
+        pico_stdlib
+        hardware_pwm
+        hardware_irq
+        hardware_dma
+        hardware_pio
+    )
 endif()
-set(sdkVersion 2.1.0)
-set(toolchainVersion 13_3_Rel1)
-set(picotoolVersion 2.1.0)
-set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
-if (EXISTS ${picoVscode})
-    include(${picoVscode})
-endif()
-# ====================================================================================
-set(PICO_BOARD pico2 CACHE STRING "Board type")
-
-# Pull in Raspberry Pi Pico SDK (must be before project)
-include(pico_sdk_import.cmake)
-
-project(Juno-pi C CXX ASM)
-
-# Initialise the Raspberry Pi Pico SDK
-pico_sdk_init()
-
-# Add executable. Default name is the project name, version 0.1
-
-add_executable(Juno-pi Juno-pi.c )
-
-pico_set_program_name(Juno-pi "Juno-pi")
-pico_set_program_version(Juno-pi "0.1")
-
-# Modify the below lines to enable/disable output over UART/USB
-pico_enable_stdio_uart(Juno-pi 0)
-pico_enable_stdio_usb(Juno-pi 0)
-
-# Add the standard library to the build
-target_link_libraries(Juno-pi
-        pico_stdlib)
-
-# Add the standard include files to the build
-target_include_directories(Juno-pi PRIVATE
-  ${CMAKE_CURRENT_LIST_DIR}
-)
-
-pico_add_extra_outputs(Juno-pi)
-
